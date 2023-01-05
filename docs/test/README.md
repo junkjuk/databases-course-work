@@ -28,7 +28,7 @@
 ### GET-запит для перевірки оновлення питання з ID=14
 
 [image](https://user-images.githubusercontent.com/38862851/210866036-5414e91e-64c4-4403-86b0-1e91884d78a7.png)
-<img src="(https://user-images.githubusercontent.com/38862851/210866036-5414e91e-64c4-4403-86b0-1e91884d78a7.png">
+<img src="https://user-images.githubusercontent.com/38862851/210866036-5414e91e-64c4-4403-86b0-1e91884d78a7.png">
 
 ## DELETE-запит для видалення питання з бази
 
