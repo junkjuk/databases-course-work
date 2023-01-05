@@ -3,6 +3,7 @@
 ## GET-запит для отримання всіх питань з бази!
 
 [image](https://user-images.githubusercontent.com/38862851/210862997-5d616bbf-f18d-45f8-9c0b-cce19056d67f.png)
+<img src="https://user-images.githubusercontent.com/38862851/210862997-5d616bbf-f18d-45f8-9c0b-cce19056d67f.png">
 
 ## GET-запит для отримання одного питання з конкретним ID
 
