@@ -340,103 +340,163 @@ SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
 ### Вхідна точка проєкту:
 
 ```
-'use strict';
+using Lab6.DataController;
 
-const express = require('express');
-const { Pool } = require('./db/pool.js');
-const { getQuestion, getAllQuestions, createQuestion, deleteQuestion, updateQuestion } = require('./controller/controllers.js')
+var builder = WebApplication.CreateBuilder(args);
 
-const app = express();
-const jsonParse = express.json();
+builder.Services.AddSingleton<UsersDataController>();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-app.get('/question/:id', getQuestion);
-app.get('/questions/', getAllQuestions);
-app.post('/question/', jsonParse, createQuestion);
-app.put('/question/:id', jsonParse, updateQuestion);
-app.delete('/question/:id', deleteQuestion);
+var app = builder.Build();
 
-app.listen(3000);
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
 ```
 
 ### Підключення до бази даних:
 
 ```
-'use strict';
+using System.Data.MySqlConnection;
+using Dapper;
+using Lab6.DTO;
 
-const mysql = require('mysql2');
+namespace Lab6.DataController;
 
-const Pool = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "", //<- password here
-  database: "surveydb"
-});
+public class UsersDataController
+{
+    private IConfiguration _configuration;
+    private string ConnectionString => _configuration.GetConnectionString("DefaultConnection");
 
-module.exports = { Pool };
+    public UsersDataController(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+    
+    protected SqlConnection GetConnection()
+    {
+        return new MySqlConnection(ConnectionString);
+    }
+
+    public async Task<IEnumerable<User>> GetAll()
+    {
+        using (var connection = GetConnection())
+        {
+            await connection.OpenAsync();
+            
+            return await connection.QueryAsync<User>("SELECT * FROM users");;
+        }
+    }
+    
+    public async Task<User> GetById(int id)
+    {
+        using (var connection = GetConnection())
+        {
+            await connection.OpenAsync();
+            
+            return await connection.QuerySingleAsync<User>($"SELECT * FROM users WHERE id={id}");;
+        }
+    }
+    
+    public async Task<bool> Update(User user)
+    {
+        using (var connection = GetConnection())
+        {
+            await connection.OpenAsync();
+            var rows = await connection.ExecuteAsync($"UPDATE users SET UserName = \'{user.UserName}\', Email = \'{user.Email}\' WHERE id={user.Id}");
+            return rows > 0;
+        }
+    }
+    
+    public async Task<bool> Delete(int id)
+    {
+        using (var connection = GetConnection())
+        {
+            await connection.OpenAsync();
+            
+            var rows = await connection.ExecuteAsync($"DELETE FROM users WHERE id = {id}");
+            return rows > 0;
+        }
+    }
+    
+    public async Task<bool> Create(User user)
+    {
+        using (var connection = GetConnection())
+        {
+            await connection.OpenAsync();
+            var rows = await connection.ExecuteAsync($"INSERT INTO users VALUES(\'{user.UserName}\', \'{user.Email}\')");
+            return rows > 0;
+        }
+    }
+}
 ```
+##### "DefaultConnection": "Server=localhost;Database=labdb;User=myuser;Password=***"
 
-### Контролери:
+### Контролер:
 
 ```
-'use strict';
+using Lab6.DataController;
+using Lab6.DTO;
+using Microsoft.AspNetCore.Mvc;
 
-const { Pool } = require('../db/pool.js');
+namespace Lab6.Controllers;
 
-const getMaxQuestionId = () => {
-  const sql = 'SELECT MAX(id) FROM surveydb.questions';
-  return new Promise((resolve, reject) => {
-    Pool.query(sql, (error, result, fields) => {
-      return resolve(result);
-    });
-  });
-};
+[ApiController]
+[Route("[controller]")]
+public class UserController : ControllerBase
+{
+    private readonly ILogger<UserController> _logger;
+    public readonly UsersDataController DataController;
 
-const getQuestion = (req, res) => {
-  const sql = `SELECT * FROM surveydb.questions WHERE id = ${req.params.id}`
-  Pool.query(sql, (error, result, fields) => {
-    if (error) return res.status(500).json(error);
-    result ? res.send(result) : res.sendStatus(404);
-  });
-};
-
-const getAllQuestions = (req, res) => {
-  const sql = 'SELECT * from surveydb.questions';
-  Pool.query(sql, (error, result, fields) => {
-    if (error) return res.status(500).json(error);
-    result ? res.send(result) : res.sendStatus(404)
-  });
-};
-
-const createQuestion = (req, res) => {
-  if (!req.body) return res.sendStatus(400);
-  getMaxQuestionId().then(data => {
-    let maxId = data[0]['MAX(id)'];
-    const sql = `INSERT INTO surveydb.questions (id, type, text, quiz_id) VALUES (${++maxId},\"${req.body.type}\", \"${req.body.text}\", ${req.body.quiz_id})`;
-    Pool.query(sql, (error, result, fields) => {
-      if (error) return res.status(500).json(error);
-      result ? res.send(result) : res.sendStatus(404);
-    });
-  });
-};
-
-const deleteQuestion = (req, res) => {
-  const sql = `DELETE FROM surveydb.questions WHERE id = ${req.params.id}`
-  Pool.query(sql, (error, result, fields) => {
-    if (error) return res.status(500).json(error);
-    result ? res.send(result) : res.sendStatus(404);
-  });
-};
-
-const updateQuestion = (req, res) => {
-  if (!req.body) return res.sendStatus(400);
-  const sql = `UPDATE surveydb.questions SET type = \"${req.body.type}\", text = \"${req.body.text}\", quiz_id = \"${req.body.quiz_id}\" WHERE id = ${req.params.id} `
-  Pool.query(sql, (err, result, fields) => {
-    if (err) throw err;
-    result ? res.send(result) : res.sendStatus(404);
-  });   
-};
-
-module.exports = { getQuestion, getAllQuestions, createQuestion, deleteQuestion, updateQuestion };
+    public UserController(ILogger<UserController> logger, UsersDataController dataController)
+    {
+        _logger = logger;
+        DataController = dataController;
+    }
+    
+    [HttpGet]
+    public async Task<IEnumerable<User>> GetAll()
+    {
+        var a = await DataController.GetAll();
+        return a;
+    }
+    [HttpGet("{id}")]
+    public async Task<User> GetById(int id)
+    {
+        return await DataController.GetById(id);
+    }
+    
+    [HttpPost]
+    public async Task<bool> Create([FromBody] User user)
+    {
+        return await DataController.Create(user);
+    }
+    
+    [HttpPut]
+    public async Task<bool> Update([FromBody] User user)
+    {
+        return await DataController.Update(user);
+    }
+    
+    [HttpDelete]
+    public async Task<bool> Update([FromBody] int id)
+    {
+        return await DataController.Delete(id);
+    }
+}
 ```
 
 
